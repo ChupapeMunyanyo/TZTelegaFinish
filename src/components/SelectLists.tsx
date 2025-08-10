@@ -13,13 +13,11 @@ interface SelectListsProps {
 }
 
 const SelectLists: React.FC<SelectListsProps> = ({
-  token,
   onComplete,
   onBillSelect,
   onOrgSelect,
   onWarehouseSelect,
   onPriceTypeSelect,
-  clientId
 }) => {
   // Состояния для хранения данных
   const [bills, setBills] = useState<Bill[]>([]);

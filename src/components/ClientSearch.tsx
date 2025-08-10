@@ -7,7 +7,7 @@ interface ClientSearchProps {
   onSelect: (client: Client) => void;
 }
 
-const ClientSearch: React.FC<ClientSearchProps> = ({ token, onSelect }) => {
+const ClientSearch: React.FC<ClientSearchProps> = ({ onSelect }) => {
   const [phone, setPhone] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(false);
