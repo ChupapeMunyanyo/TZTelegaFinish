@@ -11,14 +11,14 @@ interface SaleData {
   }>;
 }
 
-export const createSale = async (token: string, data: SaleData) => {
+export const createSale = async (_token: string, data: SaleData) => {
   console.log('Creating sale with data:', data);
   return new Promise((resolve) => {
     setTimeout(() => resolve({ success: true }), 500);
   });
 };
 
-export const createAndPostSale = async (token: string, data: SaleData) => {
+export const createAndPostSale = async (_token: string, data: SaleData) => {
   console.log('Creating and posting sale with data:', data);
   return new Promise((resolve) => {
     setTimeout(() => resolve({ success: true }), 500);
