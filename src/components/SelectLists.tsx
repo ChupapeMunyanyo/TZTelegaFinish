@@ -1,6 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import type { Bill, Organization, Warehouse, PriceType } from '../types';
-import apiData from './api.json';
+import apiData from './url.json';
+
+interface Organization {
+  id: number;
+  name: string;
+}
+
+interface Warehouse {
+  id: number;
+  name: string;
+}
+
+interface Bill {
+  id: number;
+  name: string;
+  balance: number;
+  currency: string;
+}
+
+interface PriceType {
+  id: number;
+  name: string;
+}
 
 interface SelectListsProps {
   token: string;
@@ -9,7 +30,6 @@ interface SelectListsProps {
   onOrgSelect: (org: Organization) => void;
   onWarehouseSelect: (warehouse: Warehouse) => void;
   onPriceTypeSelect: (priceType: PriceType) => void;
-  clientId?: number;
 }
 
 const SelectLists: React.FC<SelectListsProps> = ({
@@ -19,29 +39,22 @@ const SelectLists: React.FC<SelectListsProps> = ({
   onWarehouseSelect,
   onPriceTypeSelect,
 }) => {
-  // Состояния для хранения данных
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [orgs, setOrgs] = useState<Organization[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [priceTypes, setPriceTypes] = useState<PriceType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Состояния для выбранных значений
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
-  const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
-  const [selectedPriceTypeId, setSelectedPriceTypeId] = useState<number | null>(null);
 
-  // Извлекаем организации из API данных
+  // Извлекаем уникальные организации из API данных
   const extractOrganizations = (): Organization[] => {
     const orgsMap = new Map<number, Organization>();
     
     apiData.result.forEach(order => {
-      if (order.organization && !orgsMap.has(order.organization)) {
+      if (order.organization) {
         orgsMap.set(order.organization, {
           id: order.organization,
-          name: `Организация ${order.organization}`
+          name: order.organization_name || `Организация ${order.organization}`
         });
       }
     });
@@ -49,15 +62,15 @@ const SelectLists: React.FC<SelectListsProps> = ({
     return Array.from(orgsMap.values());
   };
 
-  // Извлекаем склады из API данных
+  // Извлекаем уникальные склады из API данных
   const extractWarehouses = (): Warehouse[] => {
     const warehousesMap = new Map<number, Warehouse>();
     
     apiData.result.forEach(order => {
-      if (order.warehouse && !warehousesMap.has(order.warehouse)) {
+      if (order.warehouse) {
         warehousesMap.set(order.warehouse, {
           id: order.warehouse,
-          name: `Склад ${order.warehouse}`
+          name: order.warehouse_name || `Склад ${order.warehouse}`
         });
       }
     });
@@ -65,98 +78,66 @@ const SelectLists: React.FC<SelectListsProps> = ({
     return Array.from(warehousesMap.values());
   };
 
-  // Загрузка данных при монтировании компонента
   useEffect(() => {
-    setLoading(true);
-    setError(null);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Загружаем организации и склады из API
+        const orgs = extractOrganizations();
+        const whs = extractWarehouses();
+        
+        // Моки для счетов и типов цен (можно заменить на API)
+        const mockBills: Bill[] = [
+          {
+            id: 1,
+            name: "Основной счет",
+            balance: 100000,
+            currency: "RUB"
+          },
+          {
+            id: 2,
+            name: "Резервный счет",
+            balance: 50000,
+            currency: "RUB"
+          }
+        ];
 
-    try {
-      // Извлекаем данные из API
-      const organizations = extractOrganizations();
-      const warehouses = extractWarehouses();
+        const mockPriceTypes: PriceType[] = [
+          { id: 1, name: "Розничная цена" },
+          { id: 2, name: "Оптовая цена" },
+          { id: 3, name: "Партнерская цена" }
+        ];
 
-      // Простые моки для данных, которых нет в API
-      const defaultBills: Bill[] = [
-        {
-          id: 1,
-          name: "Основной счет",
-          balance: 100000,
-          currency: "RUB"
-        }
-      ];
+        setOrganizations(orgs);
+        setWarehouses(whs);
+        setBills(mockBills);
+        setPriceTypes(mockPriceTypes);
 
-      const defaultPriceTypes: PriceType[] = [
-        {
-          id: 1,
-          name: "Розничная цена"
-        },
-        {
-          id: 2,
-          name: "Оптовая цена"
-        }
-      ];
+        // Устанавливаем первые значения по умолчанию
+        if (orgs.length > 0) onOrgSelect(orgs[0]);
+        if (whs.length > 0) onWarehouseSelect(whs[0]);
+        if (mockBills.length > 0) onBillSelect(mockBills[0]);
+        if (mockPriceTypes.length > 0) onPriceTypeSelect(mockPriceTypes[0]);
 
-      setOrgs(organizations);
-      setWarehouses(warehouses);
-      setBills(defaultBills);
-      setPriceTypes(defaultPriceTypes);
-
-      // Устанавливаем первые значения по умолчанию
-      if (organizations.length > 0) {
-        setSelectedOrgId(organizations[0].id);
-        onOrgSelect(organizations[0]);
+      } catch (err) {
+        setError('Не удалось загрузить параметры');
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-      if (warehouses.length > 0) {
-        setSelectedWarehouseId(warehouses[0].id);
-        onWarehouseSelect(warehouses[0]);
-      }
-      if (defaultBills.length > 0) {
-        setSelectedBillId(defaultBills[0].id);
-        onBillSelect(defaultBills[0]);
-      }
-      if (defaultPriceTypes.length > 0) {
-        setSelectedPriceTypeId(defaultPriceTypes[0].id);
-        onPriceTypeSelect(defaultPriceTypes[0]);
-      }
+    };
 
-    } catch (err) {
-      console.error('Ошибка загрузки данных:', err);
-      setError('Не удалось загрузить справочники');
-    } finally {
-      setLoading(false);
-    }
+    loadData();
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Проверяем, что все обязательные поля выбраны
-    if (!selectedOrgId || !selectedBillId || !selectedWarehouseId || !selectedPriceTypeId) {
-      setError('Пожалуйста, заполните все обязательные поля');
-      return;
-    }
-    
     onComplete();
   };
 
-  if (loading) {
-    return <div className="loading">Загрузка данных...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="form-container">
-        <h2>Ошибка</h2>
-        <div className="error-message">{error}</div>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="submit-button"
-        >
-          Попробовать снова
-        </button>
-      </div>
-    );
-  }
+  if (loading) return <div className="loading">Загрузка параметров...</div>;
+  if (error) return <div className="error-message">{error}</div>;
 
   return (
     <form onSubmit={handleSubmit} className="form-container">
@@ -165,18 +146,12 @@ const SelectLists: React.FC<SelectListsProps> = ({
       <div className="input-group">
         <label>Организация:</label>
         <select 
-          value={selectedOrgId || ''}
           onChange={(e) => {
-            const orgId = Number(e.target.value);
-            const org = orgs.find(o => o.id === orgId);
-            if (org) {
-              setSelectedOrgId(orgId);
-              onOrgSelect(org);
-            }
+            const org = organizations.find(o => o.id === Number(e.target.value));
+            if (org) onOrgSelect(org);
           }}
-          required
         >
-          {orgs.map(org => (
+          {organizations.map(org => (
             <option key={org.id} value={org.id}>
               {org.name}
             </option>
@@ -187,16 +162,10 @@ const SelectLists: React.FC<SelectListsProps> = ({
       <div className="input-group">
         <label>Счет:</label>
         <select 
-          value={selectedBillId || ''}
           onChange={(e) => {
-            const billId = Number(e.target.value);
-            const bill = bills.find(b => b.id === billId);
-            if (bill) {
-              setSelectedBillId(billId);
-              onBillSelect(bill);
-            }
+            const bill = bills.find(b => b.id === Number(e.target.value));
+            if (bill) onBillSelect(bill);
           }}
-          required
         >
           {bills.map(bill => (
             <option key={bill.id} value={bill.id}>
@@ -209,16 +178,10 @@ const SelectLists: React.FC<SelectListsProps> = ({
       <div className="input-group">
         <label>Склад:</label>
         <select 
-          value={selectedWarehouseId || ''}
           onChange={(e) => {
-            const warehouseId = Number(e.target.value);
-            const warehouse = warehouses.find(w => w.id === warehouseId);
-            if (warehouse) {
-              setSelectedWarehouseId(warehouseId);
-              onWarehouseSelect(warehouse);
-            }
+            const warehouse = warehouses.find(w => w.id === Number(e.target.value));
+            if (warehouse) onWarehouseSelect(warehouse);
           }}
-          required
         >
           {warehouses.map(warehouse => (
             <option key={warehouse.id} value={warehouse.id}>
@@ -231,16 +194,10 @@ const SelectLists: React.FC<SelectListsProps> = ({
       <div className="input-group">
         <label>Тип цены:</label>
         <select 
-          value={selectedPriceTypeId || ''}
           onChange={(e) => {
-            const priceTypeId = Number(e.target.value);
-            const priceType = priceTypes.find(p => p.id === priceTypeId);
-            if (priceType) {
-              setSelectedPriceTypeId(priceTypeId);
-              onPriceTypeSelect(priceType);
-            }
+            const priceType = priceTypes.find(p => p.id === Number(e.target.value));
+            if (priceType) onPriceTypeSelect(priceType);
           }}
-          required
         >
           {priceTypes.map(type => (
             <option key={type.id} value={type.id}>
@@ -249,8 +206,6 @@ const SelectLists: React.FC<SelectListsProps> = ({
           ))}
         </select>
       </div>
-
-      {error && <div className="error-message">{error}</div>}
 
       <div className="form-actions">
         <button type="submit" className="submit-button">

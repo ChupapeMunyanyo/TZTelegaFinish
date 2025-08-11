@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import apiData from './api.json';
+import apiData from './url.json';
 
-interface Product {
+// Точное описание структуры товара из API
+interface ApiProduct {
   id: number;
   name: string;
   price: number;
   quantity: number;
+  barcode: string;
+  image?: string;  // В вашем API это поле называется image
+}
+
+// Тип для товара в нашем компоненте
+interface Product extends Omit<ApiProduct, 'image'> {
   selectedPrice?: number;
   categoryId?: number;
-  barcode?: string;
-  image?: string;
+  imageUrl?: string;
 }
 
 interface ProductsSelectProps {
@@ -37,47 +43,12 @@ const ProductsSelect: React.FC<ProductsSelectProps> = ({
   ]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
 
-  // Моковые данные товаров
-  const mockProducts: Product[] = [
-    {
-      id: 1,
-      name: "Букет роз",
-      price: 2500,
-      quantity: 10,
-      categoryId: 1,
-      barcode: "123456789",
-      image: "https://example.com/rose.jpg"
-    },
-    {
-      id: 2,
-      name: "Букет тюльпанов",
-      price: 1800,
-      quantity: 15,
-      categoryId: 1,
-      barcode: "987654321",
-      image: "https://example.com/tulip.jpg"
-    },
-    {
-      id: 3,
-      name: "Коробка конфет",
-      price: 1200,
-      quantity: 8,
-      categoryId: 2,
-      barcode: "456123789",
-      image: "https://example.com/candy.jpg"
-    }
-  ];
-
-  // Функции для работы с товарами
+  // Обработчики для работы с товарами
   const handleQuantityChange = (productId: number, newQuantity: number) => {
-    if (newQuantity < 1) {
-      handleRemoveProduct(productId);
-      return;
-    }
-    
-    onSelect(selectedProducts.map(product =>
-      product.id === productId ? { ...product, quantity: newQuantity } : product
-    ));
+    const updatedProducts = selectedProducts.map(product =>
+      product.id === productId ? { ...product, quantity: Math.max(1, newQuantity) } : product
+    );
+    onSelect(updatedProducts);
   };
 
   const handleRemoveProduct = (productId: number) => {
@@ -86,15 +57,17 @@ const ProductsSelect: React.FC<ProductsSelectProps> = ({
 
   const handlePriceChange = (productId: number, newPrice: number) => {
     onSelect(selectedProducts.map(product =>
-      product.id === productId ? { ...product, selectedPrice: newPrice } : product
+      product.id === productId ? { ...product, selectedPrice: Math.max(1, newPrice) } : product
     ));
   };
 
   const handleAddProduct = (product: Product) => {
-    const existing = selectedProducts.find(p => p.id === product.id);
+    const existingIndex = selectedProducts.findIndex(p => p.id === product.id);
     
-    if (existing) {
-      handleQuantityChange(product.id, existing.quantity + 1);
+    if (existingIndex >= 0) {
+      const updatedProducts = [...selectedProducts];
+      updatedProducts[existingIndex].quantity += 1;
+      onSelect(updatedProducts);
     } else {
       onSelect([...selectedProducts, { 
         ...product, 
@@ -104,50 +77,57 @@ const ProductsSelect: React.FC<ProductsSelectProps> = ({
     }
   };
 
-  // Загрузка товаров
+  // Загрузка и обработка товаров
   useEffect(() => {
-    const fetchProducts = async () => {
+    const loadProducts = async () => {
       try {
         setLoading(true);
         setError(null);
+
+        // Обрабатываем данные из API
+        const productMap = new Map<number, Product>();
         
-        // Пытаемся получить товары из API
-        const apiProducts = apiData.result.flatMap((order: any) => 
-          order.goods ? order.goods.map((g: any) => ({
-            id: g.id,
-            name: g.name || `Товар ${g.id}`,
-            price: g.price || 0,
-            quantity: g.quantity || 0,
-            categoryId: g.category_id,
-            barcode: g.barcode || '',
-            image: g.image_url || ''
-          })) : []
-        );
-        
-        setProducts(apiProducts.length > 0 ? apiProducts : mockProducts);
-        
+        apiData.result.forEach(order => {
+          if (order.goods?.length) {
+            order.goods.forEach((good: ApiProduct) => {
+              if (!productMap.has(good.id)) {
+                const categoryId = good.name.includes('Букет') ? 1 : 
+                                 good.name.includes('Коробка') ? 2 : undefined;
+                
+                productMap.set(good.id, {
+                  ...good,
+                  categoryId,
+                  imageUrl: good.image,  // Переносим image в imageUrl
+                  barcode: good.barcode || ''
+                });
+              }
+            });
+          }
+        });
+
+        setProducts(Array.from(productMap.values()));
       } catch (err) {
-        console.error('Ошибка загрузки товаров:', err);
-        setError('Не удалось загрузить товары. Используем демо-данные.');
-        setProducts(mockProducts);
+        console.error('Failed to load products:', err);
+        setError('Не удалось загрузить товары');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProducts();
+    loadProducts();
   }, [token, warehouseId]);
 
   // Фильтрация товаров
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (product.barcode && product.barcode.includes(searchTerm));
-    const matchesCategory = selectedCategory ? product.categoryId === selectedCategory : true;
+                         product.barcode.includes(searchTerm);
+    const matchesCategory = !selectedCategory || product.categoryId === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
+  // Подсчет общей суммы
   const totalSum = selectedProducts.reduce(
-    (sum, product) => sum + ((product.selectedPrice || product.price) * product.quantity), 
+    (sum, product) => sum + (product.selectedPrice || product.price) * product.quantity, 
     0
   );
 
@@ -168,24 +148,22 @@ const ProductsSelect: React.FC<ProductsSelectProps> = ({
           />
         </div>
 
-        {categories.length > 0 && (
-          <div className="input-group">
-            <label>Категория:</label>
-            <select
-              value={selectedCategory || ''}
-              onChange={(e) => setSelectedCategory(
-                e.target.value ? Number(e.target.value) : null
-              )}
-            >
-              <option value="">Все категории</option>
-              {categories.map(category => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="input-group">
+          <label>Категория:</label>
+          <select
+            value={selectedCategory || ''}
+            onChange={(e) => setSelectedCategory(
+              e.target.value ? Number(e.target.value) : null
+            )}
+          >
+            <option value="">Все категории</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -202,8 +180,8 @@ const ProductsSelect: React.FC<ProductsSelectProps> = ({
                   {filteredProducts.map(product => (
                     <div key={product.id} className="product-card">
                       <div className="product-image">
-                        {product.image ? (
-                          <img src={product.image} alt={product.name} />
+                        {product.imageUrl ? (
+                          <img src={product.imageUrl} alt={product.name} />
                         ) : (
                           <div className="image-placeholder">🛒</div>
                         )}
