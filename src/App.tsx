@@ -1,155 +1,83 @@
-import React, { useState } from 'react';
-import TokenForm from './components/TokenForm';
-import ClientSearch from './components/ClientSearch';
-import SelectLists from './components/SelectLists';
-import ProductsSelect from './components/ProductsSelect';
-import SubmitButtons from './components/SubmitButtons';
-import { createSale, createAndPostSale } from './api';
+import React, { useState } from 'react'
+import './TodoList.css'
+interface TodoList {
+    id:number,
+    text:string,
+    completed:boolean
+}
 
-const App: React.FC = () => {
-  const [token, setToken] = useState<string>('');
-  const [client, setClient] = useState<any>(null);
-  const [selectedBill, setSelectedBill] = useState<any>(null);
-  const [selectedOrg, setSelectedOrg] = useState<any>(null);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
-  const [selectedPriceType, setSelectedPriceType] = useState<any>(null);
-  const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
-  const [step, setStep] = useState<number>(1);
+type FilterType = 'All' | 'active' | 'completed'
+export const App = () => {
+    const [ todoList, setTodoList ] = useState<TodoList[]>([])
+    const [ newTodoText, setNewTodoText ] = useState<string>("")
+    const [ filterTodoList, setFilterTodoList ] = useState<FilterType>('All')
 
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(prev => prev - 1);
+    const filtersTodos = todoList.filter(todo => {
+        if (filterTodoList === 'active') return !todo.completed
+        if (filterTodoList === 'completed') return todo.completed
+        return true
+    })
+
+    const addTodo = () => {
+        if (newTodoText.trim()) {
+            setTodoList([...todoList, {
+                id:Date.now(),
+                text: newTodoText,
+                completed:false,
+            }])
+            setNewTodoText('')
+        }
     }
-  };
 
-  const handleChangeToken = () => {
-    setToken('');
-    setStep(1);
-    resetForm();
-  };
+    const handleNewTodoText = (e:React.ChangeEvent<HTMLInputElement>) => {
+        setNewTodoText(e.target.value)
+    } 
 
-  const resetForm = () => {
-    setClient(null);
-    setSelectedBill(null);
-    setSelectedOrg(null);
-    setSelectedWarehouse(null);
-    setSelectedPriceType(null);
-    setSelectedProducts([]);
-  };
-
-  const handleTokenSubmit = (token: string) => {
-    setToken(token);
-    setStep(2);
-  };
-
-  const handleClientSelect = (client: any) => {
-    setClient(client);
-    setStep(3);
-  };
-
-  const handleParametersSelect = () => {
-    setStep(4);
-  };
-
-  const handleProductsSelect = () => {
-    setStep(5);
-  };
-
-  const handleCreateSale = async () => {
-    try {
-      const saleData = prepareSaleData();
-      await createSale(token, saleData);
-      alert('Продажа успешно создана!');
-      resetForm();
-      setStep(2);
-    } catch (error) {
-      alert('Ошибка при создании продажи');
+    const toggleTodo = (id:number) => {
+        setTodoList(todoList.map(todo => 
+            todo.id === id? { ...todo, completed: !todo.completed} : todo
+        ))
     }
-  };
-
-  const handleCreateAndPostSale = async () => {
-    try {
-      const saleData = prepareSaleData();
-      await createAndPostSale(token, saleData);
-      alert('Продажа успешно создана и проведена!');
-      resetForm();
-      setStep(2);
-    } catch (error) {
-      alert('Ошибка при создании и проведении продажи');
+    const deleteTodo = (id:number) => {
+        setTodoList(todoList.filter(todo => todo.id !== id))
     }
-  };
 
-  const prepareSaleData = () => {
-    return {
-      client_id: client?.id,
-      bill_id: selectedBill?.id,
-      organization_id: selectedOrg?.id,
-      warehouse_id: selectedWarehouse?.id,
-      price_type_id: selectedPriceType?.id,
-      products: selectedProducts.map(p => ({
-        product_id: p.id,
-        quantity: p.quantity,
-        price: p.price
-      }))
-    };
-  };
-
-  const getStepTitle = () => {
-    switch(step) {
-      case 1: return 'Авторизация';
-      case 2: return 'Поиск клиента';
-      case 3: return 'Выбор параметров';
-      case 4: return 'Выбор товаров';
-      case 5: return 'Подтверждение';
-      default: return '';
+    const getFiltersTodos = () => {
+        switch(filterTodoList) {
+            case 'All' : return 'У вас нет никаких дел'
+            case 'active' : return 'У вас нет активных дел'
+            case 'completed' : return 'У вас нет завершённых дел'
+        }
     }
-  };
-
   return (
-    <div className="app-container">
-      {step > 1 && (
-        <div className="app-header">
-          <button onClick={handleBack} className="back-button">
-            ← Назад
-          </button>
-          <h2 className="step-title">{getStepTitle()}</h2>
-          <button onClick={handleChangeToken} className="change-token-button">
-            Токен
-          </button>
+    <div className='todoWrapper'>
+        <h1>TodoList</h1>
+        <div className="add-todo">
+            <input type="text" placeholder='Что нужно сделать?' value={newTodoText} onChange={handleNewTodoText} onKeyUp={(e) => e.key === 'Enter' && addTodo()}/>
+            <button onClick={addTodo}>Добавить</button>
         </div>
-      )}
-
-      <div className="form-content">
-        {step === 1 && <TokenForm onSubmit={handleTokenSubmit} />}
-        {step === 2 && <ClientSearch token={token} onSelect={handleClientSelect} />}
-        {step === 3 && (
-          <SelectLists
-            token={token}
-            onComplete={handleParametersSelect}
-            onBillSelect={setSelectedBill}
-            onOrgSelect={setSelectedOrg}
-            onWarehouseSelect={setSelectedWarehouse}
-            onPriceTypeSelect={setSelectedPriceType}
-          />
-        )}
-        {step === 4 && (
-          <ProductsSelect
-            token={token}
-            products={selectedProducts}
-            onSelect={setSelectedProducts}
-            onComplete={handleProductsSelect}
-          />
-        )}
-        {step === 5 && (
-          <SubmitButtons
-            onCreate={handleCreateSale}
-            onCreateAndPost={handleCreateAndPostSale}
-          />
-        )}
-      </div>
+        <div className="filters-todo">
+            <button onClick={() => setFilterTodoList('All')}>Все</button>
+            <button onClick={() => setFilterTodoList('active')}>Активные</button>
+            <button onClick={() => setFilterTodoList('completed')}>Завершённые</button>
+        </div>
+        <ul className="todo-list">
+            {
+                filtersTodos.length === 0? (
+                    <span className='getFiltersTodos'>{getFiltersTodos()}</span>
+                ):
+                filtersTodos.map(todo => (
+                    <li key={todo.id} className={todo.completed? 'completed' : ''} >
+                        <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo.id)}/>
+                        <span>{todo.text}</span>
+                        <button onClick={() => deleteTodo(todo.id)}>Удалить</button>
+                    </li>
+                 ))
+            }
+        </ul>
+        <div className="start">
+            Осталось выполнить: { todoList.filter( t=> !t.completed ).length }
+        </div>
     </div>
-  );
-};
-
-export default App;
-
+  )
+}
